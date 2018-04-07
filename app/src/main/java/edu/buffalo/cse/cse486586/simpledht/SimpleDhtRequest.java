@@ -10,8 +10,8 @@ class SimpleDhtRequest {
     /*********
 
         type == join                : originator; join; null
-        type == insert               : originator; insert; id+type+key
-        type == query               : originator; query; id+type+key
+        type == insert               : originator; insert; key
+        type == query               : originator; query; type/key
         type == delete              : originator; delete; type+key
         type == changePredecessor   : originator; changePredecessor; newPredecessor
 

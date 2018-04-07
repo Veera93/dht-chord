@@ -6,8 +6,8 @@ package edu.buffalo.cse.cse486586.simpledht;
 
 public class SimpleDhtResponse {
     /*********
-     type == join    : sender; join; predecessor
-     type == query   : sender; query; content
+     type == join                : sender; join; predecessor
+     type == query               : sender; query; type+key+value
      **********/
 
     private String sender;
