@@ -71,11 +71,11 @@ public class OnTestClickListener implements OnClickListener {
 
 			/* MY CODE
 			 */
-//			if(testDelete()) {
-//				publishProgress("Delete success\n");
-//			} else {
-//				publishProgress("Delete fail\n");
-//			}
+			if(testDelete()) {
+				publishProgress("Delete success\n");
+			} else {
+				publishProgress("Delete fail\n");
+			}
 			
 			return null;
 		}
@@ -145,17 +145,17 @@ public class OnTestClickListener implements OnClickListener {
 			return true;
 		}
 
-//		private boolean testDelete() {
-//			try {
-//				int deletecount = mContentResolver.delete(mUri, "key0" ,null);
-//				if(deletecount == 0) {
-//					return false;
-//				} else {
-//					return true;
-//				}
-//			} catch (Exception e) {
-//				return false;
-//			}
-//		}
+		private boolean testDelete() {
+			try {
+				int deletecount = mContentResolver.delete(mUri, "sadasd" ,null);
+				if(deletecount == 0) {
+					return false;
+				} else {
+					return true;
+				}
+			} catch (Exception e) {
+				return false;
+			}
+		}
 	}
 }

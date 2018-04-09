@@ -138,7 +138,7 @@ public class SimpleDhtProvider extends ContentProvider {
     @Override
     public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs,
             String sortOrder) {
-
+        Log.v(TAG, "Querying for "+ selection);
         dbHelper = new SimpleDhtDbHelper(this.getContext());
         db = dbHelper.getReadableDatabase();
         Cursor cursor = null;
@@ -158,10 +158,10 @@ public class SimpleDhtProvider extends ContentProvider {
                     SimpleDhtRequest request = new SimpleDhtRequest(myId, SimpleDhtRequest.Type.QUERY, selection);
                     String msgTosend = request.toString();
                     sharedData.temp.add(tcursor);
-                    new ClientTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR,  SimpleDhtRequest.Type.QUERY , successorPort.toString() , msgTosend);
                     synchronized (lock) {
                         sharedData.isLocked = true;
                         sharedData.key = selection;
+                        new ClientTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR,  SimpleDhtRequest.Type.QUERY , successorPort.toString() , msgTosend);
                         while(sharedData.isLocked) {
                             lock.wait();
                         }
@@ -211,10 +211,10 @@ public class SimpleDhtProvider extends ContentProvider {
                     Integer successorPort = Integer.parseInt(node.successor) * 2;
                     SimpleDhtRequest request = new SimpleDhtRequest(myId, SimpleDhtRequest.Type.QUERY, selection);
                     String msgTosend = request.toString();
-                    new ClientTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR,  SimpleDhtRequest.Type.QUERY , successorPort.toString() , msgTosend);
                     synchronized (lock) {
                         sharedData.isLocked = true;
                         sharedData.key = selection;
+                        new ClientTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR,  SimpleDhtRequest.Type.QUERY , successorPort.toString() , msgTosend);
                         while(sharedData.isLocked) {
                             lock.wait();
                         }
@@ -254,6 +254,8 @@ public class SimpleDhtProvider extends ContentProvider {
     @Override
     public int delete(Uri uri, String selection, String[] selectionArgs) {
         int deletedRows = 0;
+        dbHelper = new SimpleDhtDbHelper(this.getContext());
+        db = dbHelper.getWritableDatabase();
         if(selection.compareTo("*") == 0) {
             deletedRows = db.delete(SimpleDhtDataEntry.TABLE_NAME, null, null);
         } else if(selection.compareTo("@") == 0) {

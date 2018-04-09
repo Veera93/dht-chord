@@ -10,15 +10,15 @@ import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.TextView;
 
-public class OnGDumpClickListener implements OnClickListener {
+public class OnLDumpClickListener implements OnClickListener {
 
-    private static final String TAG = OnGDumpClickListener.class.getName();
+    private static final String TAG = OnLDumpClickListener.class.getName();
 
     private final TextView mTextView;
     private final ContentResolver mContentResolver;
     private final Uri mUri;
 
-    public OnGDumpClickListener(TextView _tv, ContentResolver _cr) {
+    public OnLDumpClickListener(TextView _tv, ContentResolver _cr) {
         mTextView = _tv;
         mContentResolver = _cr;
         mUri = buildUri("content", "edu.buffalo.cse.cse486586.simpledht.provider");
@@ -56,7 +56,7 @@ public class OnGDumpClickListener implements OnClickListener {
 
         private boolean testQuery() {
             try {
-                Cursor resultCursor = mContentResolver.query(mUri, null, "*", null, null);
+                Cursor resultCursor = mContentResolver.query(mUri, null, "@", null, null);
                     if (resultCursor == null) {
                         Log.e(TAG, "Result null");
                         throw new Exception();
