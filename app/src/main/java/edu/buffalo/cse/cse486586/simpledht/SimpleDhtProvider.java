@@ -9,7 +9,9 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 import java.util.Formatter;
+import java.util.concurrent.ExecutionException;
 
 import android.content.ContentProvider;
 import android.content.ContentValues;
@@ -55,8 +57,6 @@ public class SimpleDhtProvider extends ContentProvider {
 
         TelephonyManager tel = (TelephonyManager) getContext().getSystemService(Context.TELEPHONY_SERVICE);
         myId = tel.getLine1Number().substring(tel.getLine1Number().length() - 4);
-        Log.v(TAG, myId);
-        Log.v(TAG, "------------");
         myPort = String.valueOf((Integer.parseInt(myId) * 2));
         String hashedId = null;
         sharedData = new QueryData();
@@ -168,7 +168,6 @@ public class SimpleDhtProvider extends ContentProvider {
                         Log.v(TAG, "Lock Released");
                         MatrixCursor matrixCursor = new MatrixCursor(new String[]{SimpleDhtDataEntry.COLUMN_NAME_KEY, SimpleDhtDataEntry.COLUMN_NAME_VALUE});
                         for(Cursor c : sharedData.temp) {
-                            //ToDo: Write code
                             while (c.moveToNext()) {
                                 int valueIndex = c.getColumnIndex(SimpleDhtDataEntry.COLUMN_NAME_VALUE);
                                 int keyIndex = c.getColumnIndex(SimpleDhtDataEntry.COLUMN_NAME_KEY);
@@ -253,18 +252,37 @@ public class SimpleDhtProvider extends ContentProvider {
 
     @Override
     public int delete(Uri uri, String selection, String[] selectionArgs) {
+        Log.v(TAG, "Deleting for "+ selection);
         int deletedRows = 0;
         dbHelper = new SimpleDhtDbHelper(this.getContext());
         db = dbHelper.getWritableDatabase();
         if(selection.compareTo("*") == 0) {
+            Log.v(TAG, "Deleting Local copy");
             deletedRows = db.delete(SimpleDhtDataEntry.TABLE_NAME, null, null);
+            if(node.successor.compareTo(myId) != 0) {
+                //ToDo: Merge and insert a function DELETE
+                Log.v(TAG, "Forwarding Delete");
+                Integer successorPort = Integer.parseInt(node.successor) * 2;
+                SimpleDhtRequest request = new SimpleDhtRequest(myId, SimpleDhtRequest.Type.DELETE, selection);
+                String msgTosend = request.toString();
+                new ClientTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, SimpleDhtRequest.Type.DELETE, successorPort.toString() , msgTosend);
+            }
         } else if(selection.compareTo("@") == 0) {
             deletedRows = db.delete(SimpleDhtDataEntry.TABLE_NAME, null, null);
         } else if(selection != null) {
-            String mselection = SimpleDhtDataEntry.COLUMN_NAME_KEY + " LIKE ?";
-            String[] mselectionArgs = { selection };
-            // Issue SQL statement.
-            deletedRows = db.delete(SimpleDhtDataEntry.TABLE_NAME, mselection, mselectionArgs);
+            if(isOwner(selection)) {
+                String mselection = SimpleDhtDataEntry.COLUMN_NAME_KEY + " LIKE ?";
+                String[] mselectionArgs = { selection };
+                // Issue SQL statement.
+                deletedRows = db.delete(SimpleDhtDataEntry.TABLE_NAME, mselection, mselectionArgs);
+            } else {
+                //ToDo: Merge and insert a function DELETE
+                Log.v(TAG, "Forwarding Delete");
+                Integer successorPort = Integer.parseInt(node.successor) * 2;
+                SimpleDhtRequest request = new SimpleDhtRequest(myId, SimpleDhtRequest.Type.DELETE, selection);
+                String msgTosend = request.toString();
+                new ClientTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, SimpleDhtRequest.Type.DELETE, successorPort.toString() , msgTosend);
+            }
         }
         return deletedRows;
     }
@@ -285,7 +303,7 @@ public class SimpleDhtProvider extends ContentProvider {
                     DataInputStream in = new DataInputStream(server.getInputStream());
                     DataOutputStream out = new DataOutputStream(server.getOutputStream());
                     String msg = in.readUTF();
-
+                    Log.v(TAG, "Incoming message" + msg);
                     if(msg != null) {
                         String[] paresedMsg = msg.split(SimpleDhtConfiguration.DELIMITER, 3);
                         String type = paresedMsg[1];
@@ -299,6 +317,8 @@ public class SimpleDhtProvider extends ContentProvider {
                                 Integer originatorIdPort = 2 * Integer.parseInt(originatorId);
                                 new ClientTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, SimpleDhtResponse.Type.JOIN , originatorIdPort.toString(), node.predecessor);
                                 node.predecessor = originatorId;
+                                if(node.predecessor.compareTo(myId) != 0)
+                                    handleKeyReinsert();
                                 Log.v(TAG,"Successor"+node.successor);
                                 Log.v(TAG,"Predecessor"+node.predecessor);
                             } else {
@@ -327,6 +347,7 @@ public class SimpleDhtProvider extends ContentProvider {
                             Log.v(TAG,"Predecessor"+node.predecessor);
                         } else if(type.compareTo(SimpleDhtRequest.Type.INSERT) == 0) {
                             String argument = paresedMsg[2];
+                            Log.v(TAG, "Got Insert"+ paresedMsg[2]);
                             String[] pair = argument.split(SimpleDhtConfiguration.ARG_DELIMITER);
                             if(isOwner(pair[0])) {
                                 customInsert(pair[0],pair[1]);
@@ -386,12 +407,11 @@ public class SimpleDhtProvider extends ContentProvider {
                             }
                         } else if(type.compareTo(SimpleDhtResponse.Type.QUERY) == 0) {
                             String[] response = paresedMsg[2].split(SimpleDhtConfiguration.ARG_DELIMITER);
-                            Log.v(TAG, response.toString());
+                            Log.v(TAG, Arrays.toString(response));
                             String queryType = response[1];
                             if(queryType.compareTo("*") == 0) {
                                 // Find if key value pair is not null
                                 Log.v(TAG, "Got response for *");
-                                //Todo: 2 or 3??
                                 if(response.length > 2) {
                                     MatrixCursor matrixCursor = new MatrixCursor(new String[]{SimpleDhtDataEntry.COLUMN_NAME_KEY, SimpleDhtDataEntry.COLUMN_NAME_VALUE});
                                     for(int i = 2; i < response.length - 1 ; i++) {
@@ -417,6 +437,26 @@ public class SimpleDhtProvider extends ContentProvider {
                                         sharedData.isLocked = false;
                                         lock.notify();
                                     }
+                                }
+                            }
+                        } else if(type.compareTo(SimpleDhtRequest.Type.DELETE) == 0) {
+                            String delete = paresedMsg[2];
+                            if(delete.compareTo("@") == 0) {
+
+                            } else if (delete.compareTo("*") == 0) {
+                                //Forward to successor only if originator is not me
+                                if(paresedMsg[0].compareTo(myId) != 0) {
+                                    Integer successorPort = Integer.parseInt(node.successor) * 2;
+                                    customDelete(delete);
+                                    //Sending message to successor
+                                    new ClientTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR,  SimpleDhtRequest.Type.DELETE , successorPort.toString() , msg);
+                                }
+                            } else {
+                                if(isOwner(delete)) {
+                                    customDelete(delete);
+                                } else {
+                                    Integer successorPort = Integer.parseInt(node.successor) * 2;
+                                    new ClientTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR,  SimpleDhtRequest.Type.DELETE , successorPort.toString() , msg);
                                 }
                             }
                         }
@@ -463,6 +503,8 @@ public class SimpleDhtProvider extends ContentProvider {
                 sendRequest(type, toSendPort.toString(), msgs[2]);
             } else if(type.compareTo(SimpleDhtResponse.Type.QUERY) == 0) {
                 sendResponse(type, toSendPort.toString(), msgs[2]);
+            } else if(type.compareTo(SimpleDhtRequest.Type.DELETE) == 0) {
+                sendRequest(type, toSendPort.toString(), msgs[2]);
             }
            return null;
         }
@@ -471,7 +513,6 @@ public class SimpleDhtProvider extends ContentProvider {
     private void sendRequest(String type, String toSendPort, String argument) {
         if(type.compareTo(SimpleDhtRequest.Type.JOIN) == 0) {
             String originator = argument;
-            //ToDo: check if sending null causes an issue
             SimpleDhtRequest request = new SimpleDhtRequest(originator, SimpleDhtRequest.Type.JOIN, null);
             String msgToSend = request.toString();
             Log.v(TAG,"Request  "+msgToSend + " to "+toSendPort+" at "+myId);
@@ -489,6 +530,8 @@ public class SimpleDhtProvider extends ContentProvider {
             String msgToSend = request.toString();
             sendMessage(toSendPort, msgToSend);
         } else if(type.compareTo(SimpleDhtRequest.Type.QUERY) == 0) {
+            sendMessage(toSendPort, argument);
+        } else if(type.compareTo(SimpleDhtRequest.Type.DELETE) == 0) {
             sendMessage(toSendPort, argument);
         }
     }
@@ -569,59 +612,38 @@ public class SimpleDhtProvider extends ContentProvider {
     }
 
     public void customInsert(String key, String value) {
-        Log.v(TAG,"insert "+key+" "+value);
         try{
-            if(!isOwner(key)) {
-                Log.v(TAG,"insert calling successor");
-                Integer successorPort = Integer.parseInt(node.successor) * 2;
-                String pair = key+SimpleDhtConfiguration.ARG_DELIMITER+value;
-                new ClientTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, SimpleDhtRequest.Type.INSERT , successorPort.toString() ,pair);
-            } else {
-                Log.v(TAG,"insert handled in custom");
-                dbHelper = new SimpleDhtDbHelper(this.getContext());
-                db = dbHelper.getWritableDatabase();
-                //String sql = "INSERT INTO message VALUES (?,?)";
-                //db.execSQL(sql, new String[] {key,value});
-                String sql = "INSERT INTO message ("+SimpleDhtDataEntry.COLUMN_NAME_KEY+", " +SimpleDhtDataEntry.COLUMN_NAME_VALUE + ") values('"+key+"', '"+value+"');";
-                Log.v(TAG,sql);
-                db.execSQL(sql);
-                //db.close();
-            }
+            Log.v(TAG,"insert handled in custom");
+            dbHelper = new SimpleDhtDbHelper(this.getContext());
+            db = dbHelper.getWritableDatabase();
+            String sql = "INSERT INTO message ("+SimpleDhtDataEntry.COLUMN_NAME_KEY+", " +SimpleDhtDataEntry.COLUMN_NAME_VALUE + ") values('"+key+"', '"+value+"');";
+            db.execSQL(sql);
         } catch (Exception e) {
-
+            Log.e(TAG, e.getMessage());
         }
 
     }
 
     public String[] customQuery(String key, String type) {
+        //ToDo: remove type
         Log.v(TAG,"query "+key);
         Cursor mCursor = null;
+        dbHelper = new SimpleDhtDbHelper(this.getContext());
+        db = dbHelper.getReadableDatabase();
         String[] messages = null;
         try {
             if (type.compareTo("*") == 0) {
-                dbHelper = new SimpleDhtDbHelper(this.getContext());
-                db = dbHelper.getReadableDatabase();
                 String sql = "SELECT * FROM message";
                 mCursor = db.rawQuery(sql, null);
             } else if (type.compareTo("u") == 0) {
-                if (!isOwner(key)) {
-                    Log.v(TAG, "query calling successor");
-                    Integer successorPort = Integer.parseInt(node.successor) * 2;
-                    //ToDo: Send the request to successor
-                    new ClientTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, SimpleDhtRequest.Type.QUERY, successorPort.toString(), key);
-                } else {
                     Log.v(TAG, "query handled in custom");
-                    dbHelper = new SimpleDhtDbHelper(this.getContext());
-                    db = dbHelper.getReadableDatabase();
                     String sql = "SELECT * FROM message WHERE key = ?";
                     String[] selectionArgs = {key};
                     mCursor = db.rawQuery(sql, selectionArgs);
-                }
             }
+
             if (mCursor != null) {
-                //int valueIndex = mCursor.getColumnIndex(SimpleDhtDataEntry.COLUMN_NAME_VALUE);
                 Log.v(TAG, DatabaseUtils.dumpCursorToString(mCursor));
-                //answer = mCursor.getString(valueIndex);
                 messages = new String[mCursor.getCount() * 2];
                 int counter = 0;
                 while (mCursor.moveToNext()) {
@@ -638,9 +660,65 @@ public class SimpleDhtProvider extends ContentProvider {
         } catch (Exception e) {
                 Log.e(TAG, e.getMessage());
         } finally {
-            //db.close();
             mCursor.close();
             return messages;
+        }
+    }
+
+    public int customDelete(String selection) {
+        int rowsAffected = 0;
+        dbHelper = new SimpleDhtDbHelper(this.getContext());
+        db = dbHelper.getWritableDatabase();
+        if(selection.compareTo("*") == 0) {
+            rowsAffected = db.delete(SimpleDhtDataEntry.TABLE_NAME, null, null);
+        } else {
+            String mselection = SimpleDhtDataEntry.COLUMN_NAME_KEY + " LIKE ?";
+            String[] mselectionArgs = { selection };
+            // Issue SQL statement.
+            rowsAffected = db.delete(SimpleDhtDataEntry.TABLE_NAME, mselection, mselectionArgs);
+        }
+        return rowsAffected;
+    }
+
+    public void handleKeyReinsert() {
+        Log.v(TAG, "Handling key reinsert");
+        dbHelper = new SimpleDhtDbHelper(this.getContext());
+        db = dbHelper.getReadableDatabase();
+        String[] projection = { SimpleDhtDataEntry.COLUMN_NAME_KEY, SimpleDhtDataEntry.COLUMN_NAME_VALUE};
+        Cursor cursor = null;
+        try {
+            cursor = db.query(
+                    SimpleDhtDataEntry.TABLE_NAME,     // The table to query
+                    projection,                       // The columns to return
+                    null,                   // The columns for the WHERE clause
+                    null,               // The values for the WHERE clause
+                    null,                  // don't group the rows
+                    null,                   // don't filter by row groups
+                    null                      // The sort order
+            );
+            String hashKey = null;
+            String value = null;
+            String key = null;
+            Integer predecessorPort = Integer.parseInt(node.predecessor) * 2;
+            if(cursor  != null) {
+                while (cursor.moveToNext()) {
+                    int valueIndex = cursor.getColumnIndex(SimpleDhtDataEntry.COLUMN_NAME_VALUE);
+                    int keyIndex = cursor.getColumnIndex(SimpleDhtDataEntry.COLUMN_NAME_KEY);
+                    key = cursor.getString(keyIndex);
+                    value = cursor.getString(valueIndex);
+                    if(!isOwner(key)) {
+                        String arg = myId+SimpleDhtConfiguration.ARG_DELIMITER+key+SimpleDhtConfiguration.ARG_DELIMITER+value;
+                        customDelete(key);
+                        Log.v(TAG, "Sending key value:"+ key + value);
+                        new ClientTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, SimpleDhtRequest.Type.INSERT , predecessorPort.toString() ,arg);
+                    }
+                }
+                hashKey = null;
+                value = null;
+                key = null;
+            }
+        } catch (Exception e) {
+            Log.e(TAG, e.getMessage());
         }
     }
 }

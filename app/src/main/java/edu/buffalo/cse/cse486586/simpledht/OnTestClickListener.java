@@ -68,15 +68,6 @@ public class OnTestClickListener implements OnClickListener {
 			} else {
 				publishProgress("Query fail\n");
 			}
-
-			/* MY CODE
-			 */
-			if(testDelete()) {
-				publishProgress("Delete success\n");
-			} else {
-				publishProgress("Delete fail\n");
-			}
-			
 			return null;
 		}
 		
@@ -143,19 +134,6 @@ public class OnTestClickListener implements OnClickListener {
 			}
 
 			return true;
-		}
-
-		private boolean testDelete() {
-			try {
-				int deletecount = mContentResolver.delete(mUri, "sadasd" ,null);
-				if(deletecount == 0) {
-					return false;
-				} else {
-					return true;
-				}
-			} catch (Exception e) {
-				return false;
-			}
 		}
 	}
 }
