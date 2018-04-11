@@ -28,7 +28,6 @@ public class SimpleDhtResponse {
     static final class Type {
         static final String JOIN="respondJoin";
         static final String QUERY="respondQuery";
-        static final String DELETE="respondDelete";
 
     }
 }

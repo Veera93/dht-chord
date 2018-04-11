@@ -8,4 +8,5 @@ public class Node {
     String myHashedId;
     String successor;
     String predecessor;
+    Integer successorPort;
 }
