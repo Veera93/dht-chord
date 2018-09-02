@@ -24,12 +24,12 @@ In this project the following has been implemented,
 ## Testing
 
 Points  : Testing Criteria 
-1       : Local insert/query/delete operations work on a DHT containing a single AVD.
-2       : The insert operation works correctly with static membership of 5 AVDs.
-2       : The query operation works correctly with static membership of 5 AVDs.
-2       : The insert operation works correctly with between 1 and 5 AVDs (and possibly changing membership).
-2       : The query operation works correctly with between 1 and 5 AVDs (and possibly changing membership).
-1       : The delete operation works correctly with between 1 and 5 AVDs (and possibly changing membership).
+1       : Local insert/query/delete operations work on a DHT containing a single AVD.<br>
+2       : The insert operation works correctly with static membership of 5 AVDs.<br>
+2       : The query operation works correctly with static membership of 5 AVDs.<br>
+2       : The insert operation works correctly with between 1 and 5 AVDs (and possibly changing membership).<br>
+2       : The query operation works correctly with between 1 and 5 AVDs (and possibly changing membership).<br>
+1       : The delete operation works correctly with between 1 and 5 AVDs (and possibly changing membership).<br>
 
 How to run the grading script: (Use python-2.7)
 
