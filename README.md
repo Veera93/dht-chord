@@ -41,3 +41,5 @@ The python files and the grading scripts can be found under the scripts director
 3. Start the emulator network using port 10000: python set_redir.py 10000
 4. Test the APK by running the grading script and pass the APK file to the program. 
 [grading_script] [apk_name].apk
+
+##### For more information about grading and detailed instruction please refer the simple-dht.pdf
